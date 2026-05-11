@@ -1,6 +1,6 @@
 # Phase 3 — Streamlit Dashboard
 
-Build a Streamlit dashboard that reads from the PostgreSQL `mentions` table and visualizes NASA media coverage.
+Build a Streamlit dashboard that reads from the Supabase `mentions` table and visualizes NASA media coverage.
 
 ## Files
 
@@ -29,7 +29,8 @@ pip install -r requirements.txt
 Make sure `.env` contains:
 
 ```text
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nasa_media_monitor
+SUPABASE_URL=https://tjqxdpoygfwdfmqjybsv.supabase.co
+SUPABASE_KEY=your_supabase_anon_public_key
 ```
 
 ## Run

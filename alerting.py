@@ -5,13 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from config import ConfigError, get_required_database_url, require_env
+from config import ConfigError, get_supabase_client, require_env
 
 
 ALERT_TYPE_MENTION_SPIKE = "mention_spike"
@@ -70,115 +70,90 @@ def send_telegram_message(bot_token: str, chat_id: str, message: str) -> None:
         raise RuntimeError(f"Telegram API returned an error: {payload}")
 
 
-def fetch_spike_check(database_url: str, threshold_multiplier: float) -> SpikeCheck:
-    import psycopg
-    from psycopg.rows import dict_row
+def parse_timestamp(value: Any) -> datetime | None:
+    if value is None or isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
 
-    sql = """
-        WITH bounds AS (
-            SELECT
-                date_trunc('hour', NOW()) AS window_end,
-                date_trunc('hour', NOW()) - INTERVAL '1 hour' AS window_start
-        ),
-        current_window AS (
-            SELECT COUNT(*)::int AS current_volume
-            FROM mentions, bounds
-            WHERE published_at >= bounds.window_start
-                AND published_at < bounds.window_end
-        ),
-        baseline AS (
-            SELECT (COUNT(*)::numeric / 168.0) AS baseline_volume
-            FROM mentions, bounds
-            WHERE published_at >= bounds.window_start - INTERVAL '7 days'
-                AND published_at < bounds.window_start
-        )
-        SELECT
-            bounds.window_start,
-            bounds.window_end,
-            current_window.current_volume,
-            COALESCE(baseline.baseline_volume, 0) AS baseline_volume
-        FROM bounds, current_window, baseline
-    """
 
-    with psycopg.connect(database_url, row_factory=dict_row) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(sql)
-            row = cursor.fetchone()
+def fetch_spike_check(supabase_client, threshold_multiplier: float) -> SpikeCheck:
+    now = datetime.now(tz=timezone.utc)
+    window_end = now.replace(minute=0, second=0, microsecond=0)
+    window_start = window_end - timedelta(hours=1)
+    baseline_start = window_start - timedelta(days=7)
+
+    response = (
+        supabase_client.table("mentions")
+        .select("published_at")
+        .gte("published_at", baseline_start.isoformat())
+        .lt("published_at", window_end.isoformat())
+        .execute()
+    )
+
+    current_volume = 0
+    baseline_count = 0
+    for row in response.data:
+        published_at = parse_timestamp(row.get("published_at"))
+        if published_at is None:
+            continue
+        if published_at.tzinfo is None:
+            published_at = published_at.replace(tzinfo=timezone.utc)
+        if window_start <= published_at < window_end:
+            current_volume += 1
+        if baseline_start <= published_at < window_start:
+            baseline_count += 1
+
+    baseline_volume = baseline_count / 168.0
 
     return SpikeCheck(
-        window_start=row["window_start"],
-        window_end=row["window_end"],
-        current_volume=row["current_volume"],
-        baseline_volume=float(row["baseline_volume"]),
+        window_start=window_start,
+        window_end=window_end,
+        current_volume=current_volume,
+        baseline_volume=baseline_volume,
         threshold_multiplier=threshold_multiplier,
     )
 
 
-def alert_already_sent(database_url: str, check: SpikeCheck) -> bool:
-    import psycopg
-
-    sql = """
-        SELECT 1
-        FROM alert_events
-        WHERE alert_type = %s
-            AND window_start = %s
-            AND window_end = %s
-        LIMIT 1
-    """
-
-    with psycopg.connect(database_url) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                sql,
-                (
-                    ALERT_TYPE_MENTION_SPIKE,
-                    check.window_start,
-                    check.window_end,
-                ),
-            )
-            return cursor.fetchone() is not None
+def alert_already_sent(supabase_client, check: SpikeCheck) -> bool:
+    response = (
+        supabase_client.table("alert_events")
+        .select("id")
+        .eq("alert_type", ALERT_TYPE_MENTION_SPIKE)
+        .eq("window_start", check.window_start.isoformat())
+        .eq("window_end", check.window_end.isoformat())
+        .limit(1)
+        .execute()
+    )
+    return bool(response.data)
 
 
-def record_alert_sent(database_url: str, check: SpikeCheck) -> None:
-    import psycopg
-
-    sql = """
-        INSERT INTO alert_events (
-            alert_type,
-            window_start,
-            window_end,
-            current_volume,
-            baseline_volume,
-            threshold_multiplier
-        )
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (alert_type, window_start, window_end) DO NOTHING
-    """
-
-    with psycopg.connect(database_url) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                sql,
-                (
-                    ALERT_TYPE_MENTION_SPIKE,
-                    check.window_start,
-                    check.window_end,
-                    check.current_volume,
-                    check.baseline_volume,
-                    check.threshold_multiplier,
-                ),
-            )
-        connection.commit()
+def record_alert_sent(supabase_client, check: SpikeCheck) -> None:
+    supabase_client.table("alert_events").upsert(
+        {
+            "alert_type": ALERT_TYPE_MENTION_SPIKE,
+            "window_start": check.window_start.isoformat(),
+            "window_end": check.window_end.isoformat(),
+            "current_volume": check.current_volume,
+            "baseline_volume": check.baseline_volume,
+            "threshold_multiplier": check.threshold_multiplier,
+        },
+        on_conflict="alert_type,window_start,window_end",
+    ).execute()
 
 
 def check_and_send_alert(
-    database_url: str,
+    supabase_client,
     telegram_bot_token: str,
     telegram_chat_id: str,
     threshold_multiplier: float,
     dry_run: bool = False,
 ) -> SpikeCheck:
-    check = fetch_spike_check(database_url, threshold_multiplier)
+    check = fetch_spike_check(supabase_client, threshold_multiplier)
 
     if not check.is_spike:
         print(
@@ -187,7 +162,7 @@ def check_and_send_alert(
         )
         return check
 
-    if alert_already_sent(database_url, check):
+    if alert_already_sent(supabase_client, check):
         print("Spike detected, but alert was already sent for this hourly window.")
         return check
 
@@ -197,13 +172,13 @@ def check_and_send_alert(
         return check
 
     send_telegram_message(telegram_bot_token, telegram_chat_id, message)
-    record_alert_sent(database_url, check)
+    record_alert_sent(supabase_client, check)
     print("Telegram spike alert sent.")
     return check
 
 
 def run_scheduler(
-    database_url: str,
+    supabase_client,
     telegram_bot_token: str,
     telegram_chat_id: str,
     threshold_multiplier: float,
@@ -217,7 +192,7 @@ def run_scheduler(
         hours=1,
         next_run_time=datetime.now(tz=timezone.utc),
         kwargs={
-            "database_url": database_url,
+            "supabase_client": supabase_client,
             "telegram_bot_token": telegram_bot_token,
             "telegram_chat_id": telegram_chat_id,
             "threshold_multiplier": threshold_multiplier,
@@ -243,7 +218,7 @@ def main() -> None:
         raise SystemExit("--threshold-multiplier must be greater than 0.")
 
     try:
-        database_url = get_required_database_url()
+        supabase_client = get_supabase_client()
         telegram_config = require_env("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
     except ConfigError as error:
         raise SystemExit(str(error)) from error
@@ -253,7 +228,7 @@ def main() -> None:
 
     if args.once:
         check_and_send_alert(
-            database_url=database_url,
+            supabase_client=supabase_client,
             telegram_bot_token=telegram_bot_token,
             telegram_chat_id=telegram_chat_id,
             threshold_multiplier=args.threshold_multiplier,
@@ -262,7 +237,7 @@ def main() -> None:
         return
 
     run_scheduler(
-        database_url=database_url,
+        supabase_client=supabase_client,
         telegram_bot_token=telegram_bot_token,
         telegram_chat_id=telegram_chat_id,
         threshold_multiplier=args.threshold_multiplier,

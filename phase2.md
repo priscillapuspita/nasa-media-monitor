@@ -1,6 +1,6 @@
 # Phase 2 — Sentiment Analysis
 
-Add a sentiment analysis module that reads rows from the `mentions` table, classifies each mention as `positive`, `neutral`, or `negative`, and writes the sentiment label plus confidence score back to PostgreSQL.
+Add a sentiment analysis module that reads rows from the Supabase `mentions` table, classifies each mention as `positive`, `neutral`, or `negative`, and writes the sentiment label plus confidence score back.
 
 ## Files
 
@@ -28,9 +28,7 @@ The model returns Cardiff labels:
 
 Run this migration against an existing Phase 1 database:
 
-```bash
-psql "$DATABASE_URL" -f migration_phase2_sentiment.sql
-```
+Run `migration_phase2_sentiment.sql` in the Supabase SQL editor.
 
 The migration adds:
 
@@ -78,7 +76,7 @@ python sentiment_analysis.py --force
 
 The script:
 
-- loads `DATABASE_URL` from `.env` or the shell environment
+- loads `SUPABASE_URL` and `SUPABASE_KEY` from `.env`, Streamlit secrets, or the shell environment
 - selects mentions where `sentiment_label IS NULL`
 - combines `headline` and `raw_text`
 - cleans HTML and whitespace

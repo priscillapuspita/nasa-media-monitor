@@ -1,10 +1,10 @@
 # Phase 1 — Data Ingestion + Storage
 
-Build a Python ingestion layer that fetches NASA-related media mentions from NewsAPI and Reddit, cleans the records, and stores them in PostgreSQL.
+Build a Python ingestion layer that fetches NASA-related media mentions from NewsAPI and Reddit, cleans the records, and stores them in Supabase.
 
 ## Files
 
-- `schema.sql`: PostgreSQL schema for the `mentions` table.
+- `schema.sql`: SQL schema for the Supabase `mentions` table.
 - `ingest_mentions.py`: ingestion script for NewsAPI and Reddit.
 - `.env.example`: required environment variables.
 - `requirements.txt`: Python dependency list.
@@ -25,17 +25,9 @@ CREATE TABLE IF NOT EXISTS mentions (
 
 ## Setup
 
-1. Create a PostgreSQL database:
+1. Create a Supabase project and open the SQL editor.
 
-```bash
-createdb nasa_media_monitor
-```
-
-2. Apply the schema:
-
-```bash
-psql "$DATABASE_URL" -f schema.sql
-```
+2. Apply the SQL from `schema.sql`.
 
 3. Install dependencies:
 
@@ -64,7 +56,8 @@ The Reddit script uses the official OAuth client-credentials flow and searches R
 ## Run
 
 ```bash
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nasa_media_monitor
+export SUPABASE_URL=https://tjqxdpoygfwdfmqjybsv.supabase.co
+export SUPABASE_KEY=your_supabase_anon_public_key
 export NEWSAPI_KEY=your_newsapi_key
 export REDDIT_CLIENT_ID=your_reddit_client_id
 export REDDIT_CLIENT_SECRET=your_reddit_client_secret
@@ -87,7 +80,7 @@ The script:
 - decodes HTML entities
 - collapses extra whitespace
 - ignores records without a headline or URL
-- deduplicates records by URL with PostgreSQL `ON CONFLICT`
+- deduplicates records by URL with Supabase upsert
 
 ## Output
 

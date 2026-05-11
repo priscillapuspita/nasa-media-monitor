@@ -10,7 +10,7 @@ from typing import Any
 
 import requests
 
-from config import ConfigError, get_required_database_url, require_config_value
+from config import ConfigError, get_supabase_client, require_config_value
 from ingest_mentions import clean_text
 
 
@@ -159,26 +159,21 @@ def analyze_mentions(
 
 
 def fetch_mentions_for_analysis(
-    database_url: str,
+    supabase_client,
     limit: int,
     force: bool,
 ) -> list[MentionForSentiment]:
-    import psycopg
-    from psycopg.rows import dict_row
+    query = (
+        supabase_client.table("mentions")
+        .select("id, headline, raw_text")
+        .order("published_at", desc=True, nullsfirst=False)
+        .order("id", desc=True)
+        .limit(limit)
+    )
+    if not force:
+        query = query.is_("sentiment_label", "null")
 
-    where_clause = "" if force else "WHERE sentiment_label IS NULL"
-    sql = f"""
-        SELECT id, headline, raw_text
-        FROM mentions
-        {where_clause}
-        ORDER BY published_at DESC NULLS LAST, id DESC
-        LIMIT %s
-    """
-
-    with psycopg.connect(database_url, row_factory=dict_row) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(sql, (limit,))
-            rows = cursor.fetchall()
+    rows = query.execute().data
 
     return [
         MentionForSentiment(
@@ -190,36 +185,18 @@ def fetch_mentions_for_analysis(
     ]
 
 
-def store_sentiment_results(database_url: str, results: list[SentimentResult]) -> int:
-    import psycopg
-
+def store_sentiment_results(supabase_client, results: list[SentimentResult]) -> int:
     if not results:
         return 0
 
-    sql = """
-        UPDATE mentions
-        SET
-            sentiment_label = %s,
-            sentiment_confidence = %s,
-            sentiment_analyzed_at = %s
-        WHERE id = %s
-    """
-
-    with psycopg.connect(database_url) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                sql,
-                [
-                    (
-                        result.label,
-                        result.confidence,
-                        result.analyzed_at,
-                        result.mention_id,
-                    )
-                    for result in results
-                ],
-            )
-        connection.commit()
+    for result in results:
+        supabase_client.table("mentions").update(
+            {
+                "sentiment_label": result.label,
+                "sentiment_confidence": result.confidence,
+                "sentiment_analyzed_at": result.analyzed_at.isoformat(),
+            }
+        ).eq("id", result.mention_id).execute()
 
     return len(results)
 
@@ -244,19 +221,19 @@ def main() -> None:
         raise SystemExit("--batch-size must be at least 1.")
 
     try:
-        database_url = get_required_database_url()
+        supabase_client = get_supabase_client()
         huggingface_api_token = require_config_value("HUGGINGFACE_API_TOKEN")
     except ConfigError as error:
         raise SystemExit(str(error)) from error
 
-    mentions = fetch_mentions_for_analysis(database_url, args.limit, args.force)
+    mentions = fetch_mentions_for_analysis(supabase_client, args.limit, args.force)
     if not mentions:
         print("No mentions need sentiment analysis.")
         return
 
     sentiment_client = HuggingFaceSentimentClient(huggingface_api_token)
     results = analyze_mentions(mentions, sentiment_client, args.batch_size)
-    stored_count = store_sentiment_results(database_url, results)
+    stored_count = store_sentiment_results(supabase_client, results)
     print(f"Analyzed and updated {stored_count} mentions.")
 
 

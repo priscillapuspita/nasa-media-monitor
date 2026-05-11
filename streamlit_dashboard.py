@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from config import ConfigError, get_required_database_url
+from config import ConfigError, get_supabase_client
 from ingest_mentions import clean_text
 
 
@@ -58,39 +58,45 @@ STOPWORDS = {
 }
 
 
-def get_database_url() -> str:
+def get_database_client():
     try:
-        return get_required_database_url()
+        return get_supabase_client()
     except ConfigError as error:
         raise RuntimeError(str(error)) from error
 
 
-def fetch_rows(database_url: str, days: int, limit: int) -> list[dict[str, Any]]:
-    import psycopg
-    from psycopg.rows import dict_row
+def parse_timestamp(value: Any) -> datetime | None:
+    if value is None or isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
 
-    sql = """
-        SELECT
-            id,
-            source,
-            headline,
-            url,
-            published_at,
-            raw_text,
-            sentiment_label,
-            sentiment_confidence,
-            sentiment_analyzed_at
-        FROM mentions
-        WHERE published_at IS NULL
-            OR published_at >= NOW() - (%s * INTERVAL '1 day')
-        ORDER BY published_at DESC NULLS LAST, id DESC
-        LIMIT %s
-    """
 
-    with psycopg.connect(database_url, row_factory=dict_row) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(sql, (days, limit))
-            return list(cursor.fetchall())
+def fetch_rows(supabase_client, days: int, limit: int) -> list[dict[str, Any]]:
+    response = (
+        supabase_client.table("mentions")
+        .select(
+            "id, source, headline, url, published_at, raw_text, "
+            "sentiment_label, sentiment_confidence, sentiment_analyzed_at"
+        )
+        .order("published_at", desc=True, nullsfirst=False)
+        .order("id", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=days)
+    rows: list[dict[str, Any]] = []
+    for row in response.data:
+        published_at = parse_timestamp(row.get("published_at"))
+        if published_at is not None and published_at.tzinfo is None:
+            published_at = published_at.replace(tzinfo=timezone.utc)
+        if published_at is None or published_at >= cutoff:
+            rows.append(row)
+    return rows
 
 
 def extract_trending_keywords(rows: list[dict[str, Any]], limit: int = 15) -> list[tuple[str, int]]:
@@ -161,7 +167,7 @@ def render_dashboard() -> None:
         refresh = st.button("Refresh data")
 
     try:
-        rows = fetch_rows(get_database_url(), days=days, limit=limit)
+        rows = fetch_rows(get_database_client(), days=days, limit=limit)
     except Exception as error:
         st.error(f"Could not load dashboard data: {error}")
         st.stop()

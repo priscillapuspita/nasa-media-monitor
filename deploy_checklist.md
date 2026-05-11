@@ -16,7 +16,8 @@ Paste the secrets in TOML format. Use `.streamlit/secrets.toml.example` as the t
 
 ## Secret Keys
 
-- [ ] `DATABASE_URL`
+- [ ] `SUPABASE_URL`
+- [ ] `SUPABASE_KEY`
 - [ ] `NEWSAPI_KEY`
 - [ ] `HUGGINGFACE_API_TOKEN`
 - [ ] `REDDIT_CLIENT_ID`
@@ -29,7 +30,8 @@ Paste the secrets in TOML format. Use `.streamlit/secrets.toml.example` as the t
 ## Paste Template
 
 ```toml
-DATABASE_URL = "postgresql://username:password@host:5432/nasa_media_monitor"
+SUPABASE_URL = "https://tjqxdpoygfwdfmqjybsv.supabase.co"
+SUPABASE_KEY = "your_supabase_anon_public_key"
 NEWSAPI_KEY = "your_newsapi_key"
 HUGGINGFACE_API_TOKEN = "your_huggingface_api_token"
 REDDIT_CLIENT_ID = "your_reddit_client_id"

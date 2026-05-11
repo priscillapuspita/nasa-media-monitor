@@ -1,4 +1,4 @@
-"""Fetch NASA media mentions from NewsAPI and Reddit, then store them in PostgreSQL."""
+"""Fetch NASA media mentions from NewsAPI and Reddit, then store them in Supabase."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from config import (
     DEFAULT_REDDIT_USER_AGENT,
     ConfigError,
     get_env,
-    get_required_database_url,
+    get_supabase_client,
     require_config_value,
 )
 
@@ -134,6 +134,10 @@ def fetch_newsapi_mentions(query: str, page_size: int) -> list[Mention]:
 def get_reddit_access_token() -> str | None:
     client_id = require_config_value("REDDIT_CLIENT_ID")
     client_secret = require_config_value("REDDIT_CLIENT_SECRET")
+    if client_id == "skip" or client_secret == "skip":
+        print("Skipping Reddit: Reddit credentials are set to skip.")
+        return None
+
     user_agent = get_env("REDDIT_USER_AGENT", DEFAULT_REDDIT_USER_AGENT)
     credentials = f"{client_id}:{client_secret}".encode("utf-8")
     import base64
@@ -194,39 +198,21 @@ def fetch_reddit_mentions(query: str, limit: int) -> list[Mention]:
     return mentions
 
 
-def store_mentions(database_url: str, mentions: list[Mention]) -> int:
-    import psycopg
-
+def store_mentions(supabase_client, mentions: list[Mention]) -> int:
     if not mentions:
         return 0
 
-    sql = """
-        INSERT INTO mentions (source, headline, url, published_at, raw_text)
-        VALUES (%s, %s, %s, %s, %s)
-        ON CONFLICT (url) DO UPDATE SET
-            source = EXCLUDED.source,
-            headline = EXCLUDED.headline,
-            published_at = EXCLUDED.published_at,
-            raw_text = EXCLUDED.raw_text
-    """
-
-    with psycopg.connect(database_url) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                sql,
-                [
-                    (
-                        mention.source,
-                        mention.headline,
-                        mention.url,
-                        mention.published_at,
-                        mention.raw_text,
-                    )
-                    for mention in mentions
-                ],
-            )
-        connection.commit()
-
+    payload = [
+        {
+            "source": mention.source,
+            "headline": mention.headline,
+            "url": mention.url,
+            "published_at": mention.published_at.isoformat() if mention.published_at else None,
+            "raw_text": mention.raw_text,
+        }
+        for mention in mentions
+    ]
+    supabase_client.table("mentions").upsert(payload, on_conflict="url").execute()
     return len(mentions)
 
 
@@ -241,7 +227,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     try:
-        database_url = get_required_database_url()
+        supabase_client = get_supabase_client()
     except ConfigError as error:
         raise SystemExit(str(error)) from error
 
@@ -252,7 +238,7 @@ def main() -> None:
         raise SystemExit(str(error)) from error
     mentions = newsapi_mentions + reddit_mentions
 
-    stored_count = store_mentions(database_url, mentions)
+    stored_count = store_mentions(supabase_client, mentions)
     print(
         f"Fetched {len(newsapi_mentions)} NewsAPI mentions, "
         f"{len(reddit_mentions)} Reddit mentions, stored {stored_count} records."

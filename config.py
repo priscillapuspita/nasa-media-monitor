@@ -9,7 +9,8 @@ from pathlib import Path
 DEFAULT_MENTION_QUERY = 'NASA OR Artemis OR "James Webb" OR "Kennedy Space Center" OR JPL'
 DEFAULT_REDDIT_USER_AGENT = "nasa-media-monitor/0.1 by personal-project"
 REQUIRED_ENV_VARS = (
-    "DATABASE_URL",
+    "SUPABASE_URL",
+    "SUPABASE_KEY",
     "NEWSAPI_KEY",
     "REDDIT_CLIENT_ID",
     "REDDIT_CLIENT_SECRET",
@@ -87,11 +88,15 @@ def get_env(name: str, default: str | None = None) -> str | None:
     return get_config_value(name, default)
 
 
-def get_required_database_url() -> str:
-    return require_env("DATABASE_URL")["DATABASE_URL"]
+def get_supabase_client():
+    from supabase import create_client
+
+    supabase_config = require_env("SUPABASE_URL", "SUPABASE_KEY")
+    return create_client(supabase_config["SUPABASE_URL"], supabase_config["SUPABASE_KEY"])
 
 
-DATABASE_URL = get_config_value("DATABASE_URL")
+SUPABASE_URL = get_config_value("SUPABASE_URL")
+SUPABASE_KEY = get_config_value("SUPABASE_KEY")
 NEWSAPI_KEY = get_config_value("NEWSAPI_KEY")
 REDDIT_CLIENT_ID = get_config_value("REDDIT_CLIENT_ID")
 REDDIT_CLIENT_SECRET = get_config_value("REDDIT_CLIENT_SECRET")

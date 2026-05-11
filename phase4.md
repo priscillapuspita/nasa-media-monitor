@@ -15,9 +15,7 @@ Add an APScheduler job that checks for mention spikes every hour and sends a Tel
 
 Run this migration against an existing database:
 
-```bash
-psql "$DATABASE_URL" -f migration_phase4_alert_events.sql
-```
+Run `migration_phase4_alert_events.sql` in the Supabase SQL editor.
 
 The `alert_events` table records sent alerts so the worker does not send duplicate messages for the same hourly window.
 

@@ -48,7 +48,8 @@ Before clicking deploy, open the **Advanced settings** section.
 Paste the contents of `.streamlit/secrets.toml.example` into the **Secrets** text box, then replace every placeholder value with your real credentials:
 
 ```toml
-DATABASE_URL = "postgresql://username:password@host:5432/nasa_media_monitor"
+SUPABASE_URL = "https://tjqxdpoygfwdfmqjybsv.supabase.co"
+SUPABASE_KEY = "your_supabase_anon_public_key"
 NEWSAPI_KEY = "your_newsapi_key"
 HUGGINGFACE_API_TOKEN = "your_huggingface_api_token"
 REDDIT_CLIENT_ID = "your_reddit_client_id"
@@ -83,7 +84,7 @@ After deployment:
 
 1. Open the deployed app URL.
 2. Confirm the dashboard loads without a missing-secret error.
-3. Check that charts populate from the PostgreSQL `mentions` table.
+3. Check that charts populate from the Supabase `mentions` table.
 4. If the dashboard is empty, run ingestion and sentiment locally or through your preferred scheduled job.
 
 ## Notes

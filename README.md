@@ -1,11 +1,11 @@
 # NASA Media Monitor
 
-A personal media intelligence project inspired by platforms like Meltwater. It ingests NASA-related mentions from NewsAPI and Reddit, stores them in PostgreSQL, scores sentiment with the HuggingFace Inference API, displays a Streamlit dashboard, and sends Telegram alerts when mention volume spikes.
+A personal media intelligence project inspired by platforms like Meltwater. It ingests NASA-related mentions from NewsAPI and Reddit, stores them in Supabase, scores sentiment with the HuggingFace Inference API, displays a Streamlit dashboard, and sends Telegram alerts when mention volume spikes.
 
 ## Features
 
 - NewsAPI and Reddit ingestion
-- PostgreSQL storage
+- Supabase storage
 - HuggingFace-hosted sentiment analysis
 - Streamlit dashboard
 - Hourly APScheduler spike alerts
@@ -33,7 +33,8 @@ Then fill in the placeholder values in `.env`.
 
 Required by the full pipeline:
 
-- `DATABASE_URL`: PostgreSQL connection string.
+- `SUPABASE_URL`: Supabase project URL.
+- `SUPABASE_KEY`: Supabase anon/public API key.
 - `NEWSAPI_KEY`: API key for NewsAPI article search.
 - `HUGGINGFACE_API_TOKEN`: HuggingFace token for hosted sentiment inference.
 - `REDDIT_CLIENT_ID`: Reddit app client ID.
@@ -45,29 +46,19 @@ Required by the full pipeline:
 
 ## Database
 
-Create a PostgreSQL database:
+Create the `mentions` and `alert_events` tables in your Supabase project using the SQL editor.
 
-```bash
-createdb nasa_media_monitor
+Run the SQL in:
+
+```text
+schema.sql
 ```
 
-Run migrations:
+If you already created an older version of the database, also apply:
 
-```bash
-./setup.sh
-```
-
-This runs:
-
-```bash
-psql "$DATABASE_URL" -f schema.sql
-psql "$DATABASE_URL" -f migration_phase4_alert_events.sql
-```
-
-For an existing Phase 1 database, also run:
-
-```bash
-psql "$DATABASE_URL" -f migration_phase2_sentiment.sql
+```text
+migration_phase2_sentiment.sql
+migration_phase4_alert_events.sql
 ```
 
 ## Run Scripts
