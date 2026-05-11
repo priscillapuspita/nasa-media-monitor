@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.db
+.DS_Store
+*.sqlite
+*.sqlite3
+*.dump
+*.sql.gz
+pipeline.log
