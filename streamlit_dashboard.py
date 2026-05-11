@@ -7,7 +7,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
-from config import DATABASE_URL
+from config import ConfigError, get_required_database_url
 from ingest_mentions import clean_text
 
 
@@ -59,7 +59,10 @@ STOPWORDS = {
 
 
 def get_database_url() -> str:
-    return DATABASE_URL
+    try:
+        return get_required_database_url()
+    except ConfigError as error:
+        raise RuntimeError(str(error)) from error
 
 
 def fetch_rows(database_url: str, days: int, limit: int) -> list[dict[str, Any]]:

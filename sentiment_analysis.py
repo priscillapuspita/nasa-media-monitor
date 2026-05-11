@@ -10,7 +10,7 @@ from typing import Any
 
 import requests
 
-from config import DATABASE_URL, HUGGINGFACE_API_TOKEN
+from config import ConfigError, get_required_database_url, require_config_value
 from ingest_mentions import clean_text
 
 
@@ -243,17 +243,20 @@ def main() -> None:
     if args.batch_size < 1:
         raise SystemExit("--batch-size must be at least 1.")
 
-    if not HUGGINGFACE_API_TOKEN:
-        raise SystemExit("Missing required environment variable: HUGGINGFACE_API_TOKEN")
+    try:
+        database_url = get_required_database_url()
+        huggingface_api_token = require_config_value("HUGGINGFACE_API_TOKEN")
+    except ConfigError as error:
+        raise SystemExit(str(error)) from error
 
-    mentions = fetch_mentions_for_analysis(DATABASE_URL, args.limit, args.force)
+    mentions = fetch_mentions_for_analysis(database_url, args.limit, args.force)
     if not mentions:
         print("No mentions need sentiment analysis.")
         return
 
-    sentiment_client = HuggingFaceSentimentClient(HUGGINGFACE_API_TOKEN)
+    sentiment_client = HuggingFaceSentimentClient(huggingface_api_token)
     results = analyze_mentions(mentions, sentiment_client, args.batch_size)
-    stored_count = store_sentiment_results(DATABASE_URL, results)
+    stored_count = store_sentiment_results(database_url, results)
     print(f"Analyzed and updated {stored_count} mentions.")
 
 

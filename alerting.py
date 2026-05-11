@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from config import DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config import ConfigError, get_required_database_url, require_env
 
 
 ALERT_TYPE_MENTION_SPIKE = "mention_spike"
@@ -242,20 +242,29 @@ def main() -> None:
     if args.threshold_multiplier <= 0:
         raise SystemExit("--threshold-multiplier must be greater than 0.")
 
+    try:
+        database_url = get_required_database_url()
+        telegram_config = require_env("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
+    except ConfigError as error:
+        raise SystemExit(str(error)) from error
+
+    telegram_bot_token = telegram_config["TELEGRAM_BOT_TOKEN"]
+    telegram_chat_id = telegram_config["TELEGRAM_CHAT_ID"]
+
     if args.once:
         check_and_send_alert(
-            database_url=DATABASE_URL,
-            telegram_bot_token=TELEGRAM_BOT_TOKEN,
-            telegram_chat_id=TELEGRAM_CHAT_ID,
+            database_url=database_url,
+            telegram_bot_token=telegram_bot_token,
+            telegram_chat_id=telegram_chat_id,
             threshold_multiplier=args.threshold_multiplier,
             dry_run=args.dry_run,
         )
         return
 
     run_scheduler(
-        database_url=DATABASE_URL,
-        telegram_bot_token=TELEGRAM_BOT_TOKEN,
-        telegram_chat_id=TELEGRAM_CHAT_ID,
+        database_url=database_url,
+        telegram_bot_token=telegram_bot_token,
+        telegram_chat_id=telegram_chat_id,
         threshold_multiplier=args.threshold_multiplier,
     )
 

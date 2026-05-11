@@ -64,7 +64,7 @@ def get_secret(name: str) -> str | None:
 
 def get_config_value(name: str, default: str | None = None) -> str | None:
     load_environment()
-    return os.environ.get(name) or get_secret(name) or default
+    return get_secret(name) or os.environ.get(name) or default
 
 
 def require_config_value(name: str) -> str:
@@ -91,14 +91,12 @@ def get_required_database_url() -> str:
     return require_env("DATABASE_URL")["DATABASE_URL"]
 
 
-_REQUIRED_VALUES = require_env(*REQUIRED_ENV_VARS)
-
-DATABASE_URL = _REQUIRED_VALUES["DATABASE_URL"]
-NEWSAPI_KEY = _REQUIRED_VALUES["NEWSAPI_KEY"]
-REDDIT_CLIENT_ID = _REQUIRED_VALUES["REDDIT_CLIENT_ID"]
-REDDIT_CLIENT_SECRET = _REQUIRED_VALUES["REDDIT_CLIENT_SECRET"]
-TELEGRAM_BOT_TOKEN = _REQUIRED_VALUES["TELEGRAM_BOT_TOKEN"]
-TELEGRAM_CHAT_ID = _REQUIRED_VALUES["TELEGRAM_CHAT_ID"]
+DATABASE_URL = get_config_value("DATABASE_URL")
+NEWSAPI_KEY = get_config_value("NEWSAPI_KEY")
+REDDIT_CLIENT_ID = get_config_value("REDDIT_CLIENT_ID")
+REDDIT_CLIENT_SECRET = get_config_value("REDDIT_CLIENT_SECRET")
+TELEGRAM_BOT_TOKEN = get_config_value("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = get_config_value("TELEGRAM_CHAT_ID")
 HUGGINGFACE_API_TOKEN = get_config_value("HUGGINGFACE_API_TOKEN")
 REDDIT_USER_AGENT = get_config_value("REDDIT_USER_AGENT", DEFAULT_REDDIT_USER_AGENT)
 MENTION_QUERY = get_config_value("MENTION_QUERY", DEFAULT_MENTION_QUERY)

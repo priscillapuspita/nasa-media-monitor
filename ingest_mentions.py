@@ -14,12 +14,12 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from config import (
-    DATABASE_URL,
-    MENTION_QUERY,
-    NEWSAPI_KEY,
-    REDDIT_CLIENT_ID,
-    REDDIT_CLIENT_SECRET,
-    REDDIT_USER_AGENT,
+    DEFAULT_MENTION_QUERY,
+    DEFAULT_REDDIT_USER_AGENT,
+    ConfigError,
+    get_env,
+    get_required_database_url,
+    require_config_value,
 )
 
 
@@ -95,12 +95,14 @@ def post_form_json(
 
 
 def fetch_newsapi_mentions(query: str, page_size: int) -> list[Mention]:
+    newsapi_key = require_config_value("NEWSAPI_KEY")
+
     params = {
         "q": query,
         "language": "en",
         "sortBy": "publishedAt",
         "pageSize": str(page_size),
-        "apiKey": NEWSAPI_KEY,
+        "apiKey": newsapi_key,
     }
     payload = get_json(f"{NEWSAPI_ENDPOINT}?{urlencode(params)}")
     articles = payload.get("articles", [])
@@ -130,7 +132,10 @@ def fetch_newsapi_mentions(query: str, page_size: int) -> list[Mention]:
 
 
 def get_reddit_access_token() -> str | None:
-    credentials = f"{REDDIT_CLIENT_ID}:{REDDIT_CLIENT_SECRET}".encode("utf-8")
+    client_id = require_config_value("REDDIT_CLIENT_ID")
+    client_secret = require_config_value("REDDIT_CLIENT_SECRET")
+    user_agent = get_env("REDDIT_USER_AGENT", DEFAULT_REDDIT_USER_AGENT)
+    credentials = f"{client_id}:{client_secret}".encode("utf-8")
     import base64
 
     encoded_credentials = base64.b64encode(credentials).decode("ascii")
@@ -139,7 +144,7 @@ def get_reddit_access_token() -> str | None:
         {"grant_type": "client_credentials"},
         {
             "Authorization": f"Basic {encoded_credentials}",
-            "User-Agent": REDDIT_USER_AGENT,
+            "User-Agent": user_agent,
             "Content-Type": "application/x-www-form-urlencoded",
         },
     )
@@ -161,7 +166,7 @@ def fetch_reddit_mentions(query: str, limit: int) -> list[Mention]:
         f"{REDDIT_SEARCH_ENDPOINT}?{urlencode(params)}",
         {
             "Authorization": f"Bearer {access_token}",
-            "User-Agent": REDDIT_USER_AGENT,
+            "User-Agent": get_env("REDDIT_USER_AGENT", DEFAULT_REDDIT_USER_AGENT),
         },
     )
 
@@ -227,7 +232,7 @@ def store_mentions(database_url: str, mentions: list[Mention]) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Ingest NASA media mentions.")
-    parser.add_argument("--query", default=MENTION_QUERY)
+    parser.add_argument("--query", default=get_env("MENTION_QUERY", DEFAULT_MENTION_QUERY))
     parser.add_argument("--news-limit", type=int, default=50)
     parser.add_argument("--reddit-limit", type=int, default=50)
     return parser.parse_args()
@@ -235,12 +240,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    try:
+        database_url = get_required_database_url()
+    except ConfigError as error:
+        raise SystemExit(str(error)) from error
 
-    newsapi_mentions = fetch_newsapi_mentions(args.query, args.news_limit)
-    reddit_mentions = fetch_reddit_mentions(args.query, args.reddit_limit)
+    try:
+        newsapi_mentions = fetch_newsapi_mentions(args.query, args.news_limit)
+        reddit_mentions = fetch_reddit_mentions(args.query, args.reddit_limit)
+    except ConfigError as error:
+        raise SystemExit(str(error)) from error
     mentions = newsapi_mentions + reddit_mentions
 
-    stored_count = store_mentions(DATABASE_URL, mentions)
+    stored_count = store_mentions(database_url, mentions)
     print(
         f"Fetched {len(newsapi_mentions)} NewsAPI mentions, "
         f"{len(reddit_mentions)} Reddit mentions, stored {stored_count} records."

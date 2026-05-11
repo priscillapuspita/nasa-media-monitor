@@ -1,4 +1,5 @@
 .env
+.streamlit/secrets_filled.toml
 .venv/
 __pycache__/
 *.pyc
