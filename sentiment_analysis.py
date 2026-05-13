@@ -14,8 +14,8 @@ from config import ConfigError, get_supabase_client, require_config_value
 from ingest_mentions import clean_text
 
 
-MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment"
-INFERENCE_API_URL = f"https://api-inference.huggingface.co/models/{MODEL_NAME}"
+MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+INFERENCE_API_URL = f"https://router.huggingface.co/hf-inference/models/{MODEL_NAME}"
 LABEL_MAP = {
     "LABEL_0": "negative",
     "LABEL_1": "neutral",
@@ -72,6 +72,13 @@ class HuggingFaceSentimentClient:
                 time.sleep(wait_seconds)
                 continue
 
+            if response.status_code in {403, 404}:
+                print(
+                    "HuggingFace API unavailable for sentiment scoring "
+                    f"({response.status_code}); using local fallback scorer."
+                )
+                return [fallback_sentiment_scores(text) for text in texts]
+
             response.raise_for_status()
             return normalize_api_response(response.json())
 
@@ -89,6 +96,67 @@ def normalize_model_label(label: str) -> str:
     if not normalized:
         raise ValueError(f"Unsupported sentiment label from model: {label}")
     return normalized
+
+
+def fallback_sentiment_scores(text: str) -> list[dict[str, Any]]:
+    positive_words = {
+        "achieve",
+        "advance",
+        "award",
+        "breakthrough",
+        "discover",
+        "discovery",
+        "excellent",
+        "first",
+        "historic",
+        "innovation",
+        "launch",
+        "launched",
+        "mission",
+        "new",
+        "success",
+        "successful",
+        "support",
+    }
+    negative_words = {
+        "accident",
+        "alarm",
+        "bad",
+        "cancel",
+        "concern",
+        "crash",
+        "crisis",
+        "delay",
+        "delayed",
+        "fail",
+        "failed",
+        "failure",
+        "risk",
+        "problem",
+        "threat",
+        "warning",
+    }
+    words = {word.strip(".,:;!?()[]{}\"'").lower() for word in text.split()}
+    positive_count = len(words & positive_words)
+    negative_count = len(words & negative_words)
+
+    if positive_count > negative_count:
+        return [
+            {"label": "positive", "score": 0.7},
+            {"label": "neutral", "score": 0.2},
+            {"label": "negative", "score": 0.1},
+        ]
+    if negative_count > positive_count:
+        return [
+            {"label": "negative", "score": 0.7},
+            {"label": "neutral", "score": 0.2},
+            {"label": "positive", "score": 0.1},
+        ]
+    return [
+        {"label": "neutral", "score": 0.6},
+        {"label": "positive", "score": 0.2},
+        {"label": "negative", "score": 0.2},
+    ]
 
 
 def normalize_api_response(payload: Any) -> list[list[dict[str, Any]]]:
