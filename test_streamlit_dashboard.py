@@ -17,6 +17,46 @@ class StreamlitDashboardTest(unittest.TestCase):
         self.assertEqual(keywords["artemis"], 2)
         self.assertNotIn("nasa", keywords)
 
+    def test_extract_trending_keywords_filters_common_stopwords(self):
+        rows = [
+            {
+                "headline": "NASA said the mission will continue",
+                "raw_text": "chars for the them and that with this from have been will are its was but not you all can her his they our said telescope telescope",
+            }
+        ]
+
+        keywords = dict(extract_trending_keywords(rows, limit=10))
+
+        self.assertEqual(keywords["telescope"], 2)
+        for stopword in [
+            "chars",
+            "for",
+            "the",
+            "them",
+            "and",
+            "that",
+            "with",
+            "this",
+            "from",
+            "have",
+            "been",
+            "will",
+            "are",
+            "its",
+            "was",
+            "but",
+            "not",
+            "you",
+            "all",
+            "can",
+            "her",
+            "his",
+            "they",
+            "our",
+            "said",
+        ]:
+            self.assertNotIn(stopword, keywords)
+
     def test_build_alerts_includes_high_confidence_negative_mentions(self):
         rows = [
             {
