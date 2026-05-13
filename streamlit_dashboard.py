@@ -163,6 +163,21 @@ def build_top_sources(rows: list[dict[str, Any]], limit: int = 10) -> list[dict[
     ]
 
 
+def build_daily_volume(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    counter: Counter[Any] = Counter()
+
+    for row in rows:
+        published_at = parse_timestamp(row.get("published_at"))
+        if not published_at:
+            continue
+        counter[published_at.date()] += 1
+
+    return [
+        {"Date": date_value, "Mentions": count}
+        for date_value, count in sorted(counter.items())
+    ]
+
+
 def build_alerts(rows: list[dict[str, Any]], limit: int = 20) -> list[dict[str, Any]]:
     alerts: list[dict[str, Any]] = []
 
@@ -234,7 +249,6 @@ def render_dashboard() -> None:
 
     df = pd.DataFrame(rows)
     df["published_at"] = pd.to_datetime(df["published_at"], errors="coerce", utc=True)
-    df["published_day"] = df["published_at"].dt.date
     df["sentiment_label"] = df["sentiment_label"].fillna("unscored")
     df["sentiment_confidence"] = pd.to_numeric(df["sentiment_confidence"], errors="coerce")
 
@@ -249,18 +263,22 @@ def render_dashboard() -> None:
 
     chart_left, chart_right = st.columns([2, 1])
 
-    daily_volume = (
-        df.dropna(subset=["published_day"])
-        .groupby("published_day", as_index=False)
-        .size()
-        .rename(columns={"size": "mentions"})
-    )
+    daily_volume = pd.DataFrame(build_daily_volume(rows))
     with chart_left:
         st.subheader("Daily Mention Volume")
         if daily_volume.empty:
             st.info("No dated mentions available for the selected window.")
         else:
-            st.line_chart(daily_volume, x="published_day", y="mentions")
+            y_max = max(int(daily_volume["Mentions"].max()), 1)
+            fig = px.bar(
+                daily_volume,
+                x="Date",
+                y="Mentions",
+                labels={"Date": "Date", "Mentions": "Mentions"},
+            )
+            fig.update_yaxes(range=[0, y_max + 1], rangemode="tozero")
+            fig.update_layout(margin=dict(t=10, b=10, l=10, r=10))
+            st.plotly_chart(fig, use_container_width=True)
 
     sentiment_counts = df.groupby("sentiment_label", as_index=False).size()
     with chart_right:

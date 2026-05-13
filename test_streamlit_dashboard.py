@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from streamlit_dashboard import (
     build_alerts,
+    build_daily_volume,
     build_top_sources,
     clean_source_name,
     extract_trending_keywords,
@@ -109,6 +110,24 @@ class StreamlitDashboardTest(unittest.TestCase):
         self.assertEqual(sources[0]["Mentions"], 2)
         self.assertEqual(sources[0]["Latest Article"], "https://example.com/new")
         self.assertEqual(sources[1]["Source"], "New York Times")
+
+    def test_build_daily_volume_groups_by_date(self):
+        rows = [
+            {"published_at": "2026-05-11T09:00:00+00:00"},
+            {"published_at": "2026-05-11T17:30:00+00:00"},
+            {"published_at": "2026-05-12T01:00:00+00:00"},
+            {"published_at": None},
+        ]
+
+        volume = build_daily_volume(rows)
+
+        self.assertEqual(
+            volume,
+            [
+                {"Date": datetime(2026, 5, 11, tzinfo=timezone.utc).date(), "Mentions": 2},
+                {"Date": datetime(2026, 5, 12, tzinfo=timezone.utc).date(), "Mentions": 1},
+            ],
+        )
 
     def test_format_timestamp_handles_missing_values(self):
         self.assertEqual(format_timestamp(None), "No date")
