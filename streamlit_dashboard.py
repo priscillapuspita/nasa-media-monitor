@@ -118,6 +118,51 @@ def extract_trending_keywords(rows: list[dict[str, Any]], limit: int = 15) -> li
     return counter.most_common(limit)
 
 
+def clean_source_name(source: str | None) -> str:
+    cleaned = clean_text(source)
+    if cleaned.lower().startswith("newsapi:"):
+        cleaned = cleaned.split(":", 1)[1].strip()
+    return cleaned or "Unknown source"
+
+
+def build_top_sources(rows: list[dict[str, Any]], limit: int = 10) -> list[dict[str, Any]]:
+    sources: dict[str, dict[str, Any]] = {}
+
+    for row in rows:
+        source_name = clean_source_name(row.get("source"))
+        published_at = parse_timestamp(row.get("published_at"))
+        existing = sources.get(source_name)
+
+        if not existing:
+            sources[source_name] = {
+                "Source": source_name,
+                "Mentions": 1,
+                "Latest Article": row.get("url") or "",
+                "_latest_at": published_at,
+            }
+            continue
+
+        existing["Mentions"] += 1
+        existing_latest = existing.get("_latest_at")
+        if published_at and (not existing_latest or published_at > existing_latest):
+            existing["Latest Article"] = row.get("url") or existing["Latest Article"]
+            existing["_latest_at"] = published_at
+
+    sorted_sources = sorted(
+        sources.values(),
+        key=lambda item: (item["Mentions"], item.get("_latest_at") or datetime.min),
+        reverse=True,
+    )
+    return [
+        {
+            "Source": item["Source"],
+            "Mentions": item["Mentions"],
+            "Latest Article": item["Latest Article"],
+        }
+        for item in sorted_sources[:limit]
+    ]
+
+
 def build_alerts(rows: list[dict[str, Any]], limit: int = 20) -> list[dict[str, Any]]:
     alerts: list[dict[str, Any]] = []
 
@@ -236,9 +281,23 @@ def render_dashboard() -> None:
         fig.update_layout(showlegend=True, margin=dict(t=10, b=10, l=10, r=10))
         st.plotly_chart(fig, use_container_width=True)
 
-    source_counts = df.groupby("source", as_index=False).size().sort_values("size", ascending=False).head(10)
     st.subheader("Top Sources")
-    st.bar_chart(source_counts, x="source", y="size")
+    top_sources = build_top_sources(rows)
+    if not top_sources:
+        st.info("No source data available yet.")
+    else:
+        source_df = pd.DataFrame(top_sources)
+        st.dataframe(
+            source_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Latest Article": st.column_config.LinkColumn(
+                    "Latest Article",
+                    display_text="Open article",
+                )
+            },
+        )
 
     lower_left, lower_right = st.columns([1, 2])
 
