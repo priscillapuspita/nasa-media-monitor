@@ -178,6 +178,35 @@ def build_daily_volume(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def truncate_text(value: str | None, max_chars: int = 80) -> str:
+    text = clean_text(value)
+    if len(text) <= max_chars:
+        return text
+    return f"{text[: max_chars - 3].rstrip()}..."
+
+
+def build_article_table(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    articles: list[dict[str, Any]] = []
+
+    for row in rows:
+        published_at = parse_timestamp(row.get("published_at"))
+        articles.append(
+            {
+                "Published date": format_timestamp(published_at),
+                "Headline": truncate_text(row.get("headline"), 80),
+                "Source": clean_source_name(row.get("source")),
+                "Sentiment label": row.get("sentiment_label") or "unscored",
+                "URL": row.get("url") or "",
+                "_published_at": published_at or datetime.min.replace(tzinfo=timezone.utc),
+            }
+        )
+
+    articles.sort(key=lambda article: article["_published_at"], reverse=True)
+    for article in articles:
+        article.pop("_published_at", None)
+    return articles
+
+
 def build_alerts(rows: list[dict[str, Any]], limit: int = 20) -> list[dict[str, Any]]:
     alerts: list[dict[str, Any]] = []
 
@@ -279,6 +308,23 @@ def render_dashboard() -> None:
             fig.update_yaxes(range=[0, y_max + 1], rangemode="tozero")
             fig.update_layout(margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
+
+        st.subheader("Articles")
+        articles = build_article_table(rows)
+        if not articles:
+            st.info("No articles available for the selected window.")
+        else:
+            st.dataframe(
+                pd.DataFrame(articles),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "URL": st.column_config.LinkColumn(
+                        "URL",
+                        display_text="Open article",
+                    )
+                },
+            )
 
     sentiment_counts = df.groupby("sentiment_label", as_index=False).size()
     with chart_right:

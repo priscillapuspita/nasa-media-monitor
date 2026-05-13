@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 
 from streamlit_dashboard import (
     build_alerts,
+    build_article_table,
     build_daily_volume,
     build_top_sources,
     clean_source_name,
     extract_trending_keywords,
     format_timestamp,
+    truncate_text,
 )
 
 
@@ -128,6 +130,30 @@ class StreamlitDashboardTest(unittest.TestCase):
                 {"Date": datetime(2026, 5, 12, tzinfo=timezone.utc).date(), "Mentions": 1},
             ],
         )
+
+    def test_build_article_table_formats_articles_for_display(self):
+        long_headline = "A" * 90
+        rows = [
+            {
+                "published_at": "2026-05-11T09:00:00+00:00",
+                "headline": long_headline,
+                "source": "NewsAPI: Slashdot",
+                "sentiment_label": "neutral",
+                "url": "https://example.com/article",
+            }
+        ]
+
+        articles = build_article_table(rows)
+
+        self.assertEqual(articles[0]["Published date"], "2026-05-11 09:00")
+        self.assertEqual(len(articles[0]["Headline"]), 80)
+        self.assertTrue(articles[0]["Headline"].endswith("..."))
+        self.assertEqual(articles[0]["Source"], "Slashdot")
+        self.assertEqual(articles[0]["Sentiment label"], "neutral")
+        self.assertEqual(articles[0]["URL"], "https://example.com/article")
+
+    def test_truncate_text_keeps_short_text_unchanged(self):
+        self.assertEqual(truncate_text("Short headline", 80), "Short headline")
 
     def test_format_timestamp_handles_missing_values(self):
         self.assertEqual(format_timestamp(None), "No date")
