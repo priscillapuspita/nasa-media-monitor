@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from streamlit_dashboard import (
     build_alerts,
@@ -8,6 +8,7 @@ from streamlit_dashboard import (
     build_top_sources,
     clean_source_name,
     extract_trending_keywords,
+    filter_rows_by_date_range,
     format_timestamp,
     truncate_text,
 )
@@ -115,21 +116,45 @@ class StreamlitDashboardTest(unittest.TestCase):
 
     def test_build_daily_volume_groups_by_date(self):
         rows = [
-            {"published_at": "2026-05-11T09:00:00+00:00"},
+            {
+                "published_at": "2026-05-11T09:00:00+00:00",
+                "headline": "NASA link one",
+                "url": "https://example.com/one",
+            },
+            {
+                "published_at": "2026-05-11T17:30:00+00:00",
+                "headline": "NASA link two",
+                "url": "https://example.com/two",
+            },
+            {
+                "published_at": "2026-05-12T01:00:00+00:00",
+                "headline": "NASA link three",
+                "url": "https://example.com/three",
+            },
+            {"published_at": None},
+        ]
+
+        volume = build_daily_volume(rows, end_date=date(2026, 5, 12))
+
+        self.assertEqual(len(volume), 7)
+        self.assertEqual(volume[-2]["Date"], date(2026, 5, 11))
+        self.assertEqual(volume[-2]["Mentions"], 2)
+        self.assertIn("NASA link one", volume[-2]["Article links"])
+        self.assertIn("https://example.com/one", volume[-2]["Article links"])
+        self.assertEqual(volume[-1]["Date"], date(2026, 5, 12))
+        self.assertEqual(volume[-1]["Mentions"], 1)
+
+    def test_filter_rows_by_date_range_keeps_selected_dates(self):
+        rows = [
+            {"published_at": "2026-05-10T09:00:00+00:00"},
             {"published_at": "2026-05-11T17:30:00+00:00"},
             {"published_at": "2026-05-12T01:00:00+00:00"},
             {"published_at": None},
         ]
 
-        volume = build_daily_volume(rows)
+        filtered = filter_rows_by_date_range(rows, date(2026, 5, 11), date(2026, 5, 12))
 
-        self.assertEqual(
-            volume,
-            [
-                {"Date": datetime(2026, 5, 11, tzinfo=timezone.utc).date(), "Mentions": 2},
-                {"Date": datetime(2026, 5, 12, tzinfo=timezone.utc).date(), "Mentions": 1},
-            ],
-        )
+        self.assertEqual(len(filtered), 2)
 
     def test_build_article_table_formats_articles_for_display(self):
         long_headline = "A" * 90

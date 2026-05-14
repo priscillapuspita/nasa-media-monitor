@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from html import escape
 from typing import Any
 
 from config import ConfigError, get_supabase_client
@@ -163,18 +164,49 @@ def build_top_sources(rows: list[dict[str, Any]], limit: int = 10) -> list[dict[
     ]
 
 
-def build_daily_volume(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    counter: Counter[Any] = Counter()
+def build_article_hover(rows: list[dict[str, Any]], limit: int = 8) -> str:
+    links: list[str] = []
+
+    for row in rows[:limit]:
+        headline = escape(truncate_text(row.get("headline"), 70))
+        url = escape(clean_text(row.get("url")))
+        if url:
+            links.append(f'<a href="{url}" target="_blank">{headline}</a>')
+        elif headline:
+            links.append(headline)
+
+    if len(rows) > limit:
+        links.append(f"+ {len(rows) - limit} more articles")
+
+    return "<br>".join(links) if links else "No articles"
+
+
+def build_daily_volume(
+    rows: list[dict[str, Any]],
+    days: int = 7,
+    end_date: date | None = None,
+) -> list[dict[str, Any]]:
+    end_day = end_date or datetime.now(tz=timezone.utc).date()
+    start_day = end_day - timedelta(days=days - 1)
+    rows_by_day: dict[date, list[dict[str, Any]]] = {
+        start_day + timedelta(days=offset): [] for offset in range(days)
+    }
 
     for row in rows:
         published_at = parse_timestamp(row.get("published_at"))
         if not published_at:
             continue
-        counter[published_at.date()] += 1
+        published_day = published_at.date()
+        if start_day <= published_day <= end_day:
+            rows_by_day[published_day].append(row)
 
     return [
-        {"Date": date_value, "Mentions": count}
-        for date_value, count in sorted(counter.items())
+        {
+            "Date": date_value,
+            "Mentions": len(day_rows),
+            "Article links": build_article_hover(day_rows),
+        }
+        for date_value, day_rows in sorted(rows_by_day.items())
     ]
 
 
@@ -205,6 +237,24 @@ def build_article_table(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for article in articles:
         article.pop("_published_at", None)
     return articles
+
+
+def filter_rows_by_date_range(
+    rows: list[dict[str, Any]],
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+
+    for row in rows:
+        published_at = parse_timestamp(row.get("published_at"))
+        if not published_at:
+            continue
+        published_day = published_at.date()
+        if start_date <= published_day <= end_date:
+            filtered.append(row)
+
+    return filtered
 
 
 def build_alerts(rows: list[dict[str, Any]], limit: int = 20) -> list[dict[str, Any]]:
@@ -292,25 +342,61 @@ def render_dashboard() -> None:
 
     chart_left, chart_right = st.columns([2, 1])
 
-    daily_volume = pd.DataFrame(build_daily_volume(rows))
+    daily_records = build_daily_volume(rows)
+    daily_volume = pd.DataFrame(daily_records)
     with chart_left:
         st.subheader("Daily Mention Volume")
         if daily_volume.empty:
             st.info("No dated mentions available for the selected window.")
         else:
             y_max = max(int(daily_volume["Mentions"].max()), 1)
-            fig = px.bar(
+            fig = px.line(
                 daily_volume,
                 x="Date",
                 y="Mentions",
-                labels={"Date": "Date", "Mentions": "Mentions"},
+                markers=True,
+                labels={"Date": "Date", "Mentions": "Number of mentions"},
             )
-            fig.update_yaxes(range=[0, y_max + 1], rangemode="tozero")
+            fig.update_traces(
+                customdata=daily_volume[["Article links"]],
+                hovertemplate=(
+                    "<b>%{x|%Y-%m-%d}</b><br>"
+                    "Number of mentions: %{y}<br><br>"
+                    "%{customdata[0]}<extra></extra>"
+                ),
+                mode="lines+markers",
+            )
+            fig.update_xaxes(tickformat="%Y-%m-%d", title_text="Date")
+            fig.update_yaxes(
+                range=[0, y_max + 1],
+                rangemode="tozero",
+                title_text="Number of mentions",
+            )
             fig.update_layout(margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Articles")
-        articles = build_article_table(rows)
+        date_options = [record["Date"] for record in daily_records]
+        if date_options:
+            selected_dates = st.date_input(
+                "Filter articles by date",
+                value=(date_options[0], date_options[-1]),
+                min_value=date_options[0],
+                max_value=date_options[-1],
+            )
+            if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+                table_start_date, table_end_date = selected_dates
+            elif isinstance(selected_dates, tuple) and len(selected_dates) == 1:
+                table_start_date = table_end_date = selected_dates[0]
+            elif isinstance(selected_dates, tuple):
+                table_start_date, table_end_date = date_options[0], date_options[-1]
+            else:
+                table_start_date = table_end_date = selected_dates
+            table_rows = filter_rows_by_date_range(rows, table_start_date, table_end_date)
+        else:
+            table_rows = rows
+
+        articles = build_article_table(table_rows)
         if not articles:
             st.info("No articles available for the selected window.")
         else:
