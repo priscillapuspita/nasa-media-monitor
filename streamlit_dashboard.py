@@ -12,6 +12,9 @@ from config import ConfigError, get_supabase_client
 from ingest_mentions import clean_text
 
 
+NASA_BLUE = "#0b3d91"
+NASA_RED = "#fc3d21"
+
 STOPWORDS = {
     "about",
     "after",
@@ -106,6 +109,22 @@ def fetch_rows(supabase_client, days: int, limit: int) -> list[dict[str, Any]]:
         if published_at is None or published_at >= cutoff:
             rows.append(row)
     return rows
+
+
+def fetch_spike_alert_count(supabase_client, days: int = 7) -> int:
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=days)
+    try:
+        response = (
+            supabase_client.table("alert_events")
+            .select("id")
+            .eq("alert_type", "mention_spike")
+            .gte("sent_at", cutoff.isoformat())
+            .execute()
+        )
+    except Exception:
+        return 0
+
+    return len(response.data or [])
 
 
 def extract_trending_keywords(rows: list[dict[str, Any]], limit: int = 15) -> list[tuple[str, int]]:
@@ -277,7 +296,7 @@ def build_alerts(rows: list[dict[str, Any]], limit: int = 20) -> list[dict[str, 
             {
                 "severity": severity,
                 "headline": row.get("headline") or "Untitled mention",
-                "source": row.get("source") or "Unknown source",
+                "source": clean_source_name(row.get("source")),
                 "url": row.get("url"),
                 "published_at": row.get("published_at"),
                 "sentiment_label": sentiment or "unscored",
@@ -299,13 +318,233 @@ def format_timestamp(value: Any) -> str:
     return str(value)
 
 
+def inject_dashboard_styles(st) -> None:
+    st.markdown(
+        f"""
+        <style>
+            :root {{
+                --nasa-blue: {NASA_BLUE};
+                --nasa-red: {NASA_RED};
+            }}
+
+            .stApp {{
+                background: #f7f9fc;
+            }}
+
+            section[data-testid="stSidebar"] {{
+                border-right: 1px solid rgba(11, 61, 145, 0.12);
+            }}
+
+            .nasa-hero {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1.5rem;
+                padding: 1rem 0 1.35rem;
+                border-bottom: 1px solid rgba(11, 61, 145, 0.14);
+                margin-bottom: 1.2rem;
+            }}
+
+            .nasa-title-wrap {{
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+            }}
+
+            .nasa-logo-badge {{
+                width: 64px;
+                height: 64px;
+                border-radius: 999px;
+                background: radial-gradient(circle at 38% 35%, #1d5fc4 0 34%, var(--nasa-blue) 35% 100%);
+                color: #ffffff;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 800;
+                font-size: 0.92rem;
+                letter-spacing: 0;
+                box-shadow: 0 12px 26px rgba(11, 61, 145, 0.22);
+                position: relative;
+                flex: 0 0 auto;
+            }}
+
+            .nasa-logo-badge::after {{
+                content: "";
+                position: absolute;
+                width: 76%;
+                height: 2px;
+                background: var(--nasa-red);
+                transform: rotate(-23deg);
+                border-radius: 999px;
+            }}
+
+            .nasa-logo-badge span {{
+                position: relative;
+                z-index: 1;
+            }}
+
+            .nasa-title {{
+                color: #172033;
+                font-size: 2rem;
+                line-height: 1.1;
+                font-weight: 760;
+                margin: 0;
+            }}
+
+            .nasa-subtitle {{
+                color: #526174;
+                margin-top: 0.24rem;
+                font-size: 1rem;
+            }}
+
+            .spike-counter {{
+                min-width: 154px;
+                border: 1px solid rgba(11, 61, 145, 0.18);
+                border-left: 5px solid var(--nasa-red);
+                border-radius: 8px;
+                background: #ffffff;
+                padding: 0.75rem 0.9rem;
+                box-shadow: 0 10px 22px rgba(23, 32, 51, 0.06);
+            }}
+
+            .spike-counter-label {{
+                color: #526174;
+                font-size: 0.8rem;
+                font-weight: 650;
+                text-transform: uppercase;
+                letter-spacing: 0;
+            }}
+
+            .spike-counter-value {{
+                color: var(--nasa-blue);
+                font-size: 1.65rem;
+                line-height: 1;
+                font-weight: 760;
+                margin-top: 0.25rem;
+            }}
+
+            .metric-card {{
+                border: 1px solid rgba(11, 61, 145, 0.14);
+                border-left: 5px solid var(--nasa-blue);
+                border-radius: 8px;
+                background: #ffffff;
+                padding: 0.85rem 1rem;
+                box-shadow: 0 10px 24px rgba(23, 32, 51, 0.05);
+            }}
+
+            .metric-card.red {{
+                border-left-color: var(--nasa-red);
+            }}
+
+            .metric-card-label {{
+                color: #526174;
+                font-size: 0.82rem;
+                font-weight: 650;
+                text-transform: uppercase;
+                letter-spacing: 0;
+            }}
+
+            .metric-card-value {{
+                color: #172033;
+                font-size: 1.45rem;
+                line-height: 1.2;
+                font-weight: 750;
+                margin-top: 0.35rem;
+            }}
+
+            .keyword-pill-wrap {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-top: 0.25rem;
+            }}
+
+            .keyword-pill {{
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                background: rgba(11, 61, 145, 0.1);
+                border: 1px solid rgba(11, 61, 145, 0.18);
+                color: var(--nasa-blue);
+                border-radius: 999px;
+                padding: 0.34rem 0.62rem;
+                font-weight: 680;
+                font-size: 0.86rem;
+                line-height: 1;
+            }}
+
+            .keyword-pill-count {{
+                color: #526174;
+                font-weight: 650;
+            }}
+
+            div[data-testid="stMetric"] {{
+                background: transparent;
+            }}
+
+            h1, h2, h3 {{
+                color: #172033;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_header(st, spike_alert_count: int) -> None:
+    st.markdown(
+        f"""
+        <div class="nasa-hero">
+            <div class="nasa-title-wrap">
+                <div class="nasa-logo-badge"><span>NASA</span></div>
+                <div>
+                    <h1 class="nasa-title">NASA Media Monitor</h1>
+                    <div class="nasa-subtitle">Mission coverage intelligence</div>
+                </div>
+            </div>
+            <div class="spike-counter">
+                <div class="spike-counter-label">Spike alerts</div>
+                <div class="spike-counter-value">{spike_alert_count:,}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_metric_card(st, label: str, value: str, accent: str = "blue") -> None:
+    accent_class = " red" if accent == "red" else ""
+    st.markdown(
+        f"""
+        <div class="metric-card{accent_class}">
+            <div class="metric-card-label">{escape(label)}</div>
+            <div class="metric-card-value">{escape(value)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_keyword_pills(st, keywords: list[tuple[str, int]]) -> None:
+    pills = "".join(
+        f"""
+        <span class="keyword-pill">
+            {escape(keyword)}
+            <span class="keyword-pill-count">{count}</span>
+        </span>
+        """
+        for keyword, count in keywords
+    )
+    st.markdown(f'<div class="keyword-pill-wrap">{pills}</div>', unsafe_allow_html=True)
+
+
 def render_dashboard() -> None:
     import pandas as pd
     import plotly.express as px
     import streamlit as st
 
     st.set_page_config(page_title="NASA Media Monitor", layout="wide")
-    st.title("NASA Media Monitor")
+    inject_dashboard_styles(st)
 
     with st.sidebar:
         st.header("Filters")
@@ -314,7 +553,9 @@ def render_dashboard() -> None:
         refresh = st.button("Refresh data")
 
     try:
-        rows = fetch_rows(get_database_client(), days=days, limit=limit)
+        database_client = get_database_client()
+        rows = fetch_rows(database_client, days=days, limit=limit)
+        spike_alert_count = fetch_spike_alert_count(database_client)
     except Exception as error:
         st.error(f"Could not load dashboard data: {error}")
         st.stop()
@@ -335,10 +576,20 @@ def render_dashboard() -> None:
     scored_mentions = int(df["sentiment_confidence"].notna().sum())
     latest_timestamp = df["published_at"].dropna().max()
 
+    render_header(st, spike_alert_count)
+
     metric_a, metric_b, metric_c = st.columns(3)
-    metric_a.metric("Mentions", f"{total_mentions:,}")
-    metric_b.metric("Scored mentions", f"{scored_mentions:,}")
-    metric_c.metric("Latest mention", format_timestamp(latest_timestamp.to_pydatetime() if pd.notna(latest_timestamp) else None))
+    with metric_a:
+        render_metric_card(st, "Mentions", f"{total_mentions:,}")
+    with metric_b:
+        render_metric_card(st, "Scored mentions", f"{scored_mentions:,}")
+    with metric_c:
+        render_metric_card(
+            st,
+            "Latest mention",
+            format_timestamp(latest_timestamp.to_pydatetime() if pd.notna(latest_timestamp) else None),
+            accent="red",
+        )
 
     chart_left, chart_right = st.columns([2, 1])
 
@@ -359,6 +610,8 @@ def render_dashboard() -> None:
             )
             fig.update_traces(
                 customdata=daily_volume[["Article links"]],
+                line=dict(color=NASA_BLUE, width=3),
+                marker=dict(color=NASA_BLUE, size=8),
                 hovertemplate=(
                     "<b>%{x|%Y-%m-%d}</b><br>"
                     "Number of mentions: %{y}<br><br>"
@@ -371,8 +624,14 @@ def render_dashboard() -> None:
                 range=[0, y_max + 1],
                 rangemode="tozero",
                 title_text="Number of mentions",
+                gridcolor="rgba(11, 61, 145, 0.08)",
             )
-            fig.update_layout(margin=dict(t=10, b=10, l=10, r=10))
+            fig.update_layout(
+                margin=dict(t=10, b=10, l=10, r=10),
+                plot_bgcolor="#ffffff",
+                paper_bgcolor="#ffffff",
+                hoverlabel=dict(bgcolor="#ffffff", font_color="#172033"),
+            )
             st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Articles")
@@ -458,6 +717,7 @@ def render_dashboard() -> None:
             st.info("No keywords available yet.")
         else:
             keyword_df = pd.DataFrame(keywords, columns=["keyword", "mentions"])
+            render_keyword_pills(st, keywords)
             st.dataframe(keyword_df, use_container_width=True, hide_index=True)
 
     with lower_right:

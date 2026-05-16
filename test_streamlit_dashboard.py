@@ -83,6 +83,7 @@ class StreamlitDashboardTest(unittest.TestCase):
 
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0]["severity"], "Negative coverage")
+        self.assertEqual(alerts[0]["source"], "Example")
 
     def test_clean_source_name_removes_newsapi_prefix(self):
         self.assertEqual(clean_source_name("NewsAPI: Slashdot"), "Slashdot")
