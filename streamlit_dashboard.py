@@ -329,14 +329,31 @@ def inject_dashboard_styles(st) -> None:
             :root {{
                 --nasa-blue: {NASA_BLUE};
                 --nasa-red: {NASA_RED};
+                --space-bg: #0d1117;
+                --space-panel: #161b22;
+                --space-panel-2: #1f2632;
+                --space-text: #e6edf3;
+                --space-muted: #8b949e;
+                --space-border: #30363d;
+                --space-green: #3fb950;
             }}
 
             .stApp {{
-                background: #f7f9fc;
+                background: var(--space-bg);
+                color: var(--space-text);
+            }}
+
+            .block-container {{
+                padding-top: 2rem;
             }}
 
             section[data-testid="stSidebar"] {{
-                border-right: 1px solid rgba(11, 61, 145, 0.12);
+                background: var(--space-panel);
+                border-right: 1px solid var(--space-border);
+            }}
+
+            section[data-testid="stSidebar"] * {{
+                color: var(--space-text);
             }}
 
             .nasa-hero {{
@@ -344,9 +361,12 @@ def inject_dashboard_styles(st) -> None:
                 align-items: center;
                 justify-content: space-between;
                 gap: 1.5rem;
-                padding: 1rem 0 1.35rem;
-                border-bottom: 1px solid rgba(11, 61, 145, 0.14);
-                margin-bottom: 1.2rem;
+                padding: 1.1rem 1.2rem;
+                border: 1px solid var(--space-border);
+                border-radius: 8px;
+                background: linear-gradient(135deg, rgba(11, 61, 145, 0.24), rgba(22, 27, 34, 0.92) 46%, rgba(22, 27, 34, 1));
+                margin-bottom: 1.35rem;
+                box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
             }}
 
             .nasa-title-wrap {{
@@ -367,7 +387,7 @@ def inject_dashboard_styles(st) -> None:
                 font-weight: 800;
                 font-size: 0.92rem;
                 letter-spacing: 0;
-                box-shadow: 0 12px 26px rgba(11, 61, 145, 0.22);
+                box-shadow: 0 0 0 1px rgba(230, 237, 243, 0.18), 0 16px 32px rgba(11, 61, 145, 0.32);
                 position: relative;
                 flex: 0 0 auto;
             }}
@@ -388,7 +408,7 @@ def inject_dashboard_styles(st) -> None:
             }}
 
             .nasa-title {{
-                color: #172033;
+                color: var(--space-text);
                 font-size: 2rem;
                 line-height: 1.1;
                 font-weight: 760;
@@ -396,44 +416,53 @@ def inject_dashboard_styles(st) -> None:
             }}
 
             .nasa-subtitle {{
-                color: #526174;
+                color: var(--space-muted);
                 margin-top: 0.24rem;
                 font-size: 1rem;
             }}
 
-            .spike-counter {{
-                min-width: 154px;
-                border: 1px solid rgba(11, 61, 145, 0.18);
-                border-left: 5px solid var(--nasa-red);
-                border-radius: 8px;
-                background: #ffffff;
-                padding: 0.75rem 0.9rem;
-                box-shadow: 0 10px 22px rgba(23, 32, 51, 0.06);
+            .header-pill-wrap {{
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 0.55rem;
             }}
 
-            .spike-counter-label {{
-                color: #526174;
-                font-size: 0.8rem;
+            .header-pill {{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 34px;
+                border: 1px solid rgba(230, 237, 243, 0.18);
+                border-radius: 999px;
+                background: rgba(13, 17, 23, 0.74);
+                color: var(--space-text);
+                padding: 0.38rem 0.78rem;
+                font-size: 0.84rem;
                 font-weight: 650;
-                text-transform: uppercase;
-                letter-spacing: 0;
+                white-space: nowrap;
             }}
 
-            .spike-counter-value {{
-                color: var(--nasa-blue);
-                font-size: 1.65rem;
-                line-height: 1;
-                font-weight: 760;
-                margin-top: 0.25rem;
+            .header-pill.danger {{
+                border-color: rgba(252, 61, 33, 0.78);
+                color: #ffb4a8;
+                background: rgba(252, 61, 33, 0.08);
+            }}
+
+            .header-pill.live {{
+                border-color: rgba(63, 185, 80, 0.64);
+                color: #8ce99a;
+                background: rgba(63, 185, 80, 0.1);
             }}
 
             .metric-card {{
-                border: 1px solid rgba(11, 61, 145, 0.14);
+                border: 1px solid var(--space-border);
                 border-left: 5px solid var(--nasa-blue);
                 border-radius: 8px;
-                background: #ffffff;
+                background: var(--space-panel);
                 padding: 0.85rem 1rem;
-                box-shadow: 0 10px 24px rgba(23, 32, 51, 0.05);
+                box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
             }}
 
             .metric-card.red {{
@@ -441,7 +470,7 @@ def inject_dashboard_styles(st) -> None:
             }}
 
             .metric-card-label {{
-                color: #526174;
+                color: var(--space-muted);
                 font-size: 0.82rem;
                 font-weight: 650;
                 text-transform: uppercase;
@@ -449,7 +478,7 @@ def inject_dashboard_styles(st) -> None:
             }}
 
             .metric-card-value {{
-                color: #172033;
+                color: var(--space-text);
                 font-size: 1.45rem;
                 line-height: 1.2;
                 font-weight: 750;
@@ -467,9 +496,9 @@ def inject_dashboard_styles(st) -> None:
                 display: inline-flex;
                 align-items: center;
                 gap: 0.35rem;
-                background: rgba(11, 61, 145, 0.1);
-                border: 1px solid rgba(11, 61, 145, 0.18);
-                color: var(--nasa-blue);
+                background: rgba(11, 61, 145, 0.22);
+                border: 1px solid rgba(88, 166, 255, 0.24);
+                color: #c9d8ff;
                 border-radius: 999px;
                 padding: 0.34rem 0.62rem;
                 font-weight: 680;
@@ -480,14 +509,14 @@ def inject_dashboard_styles(st) -> None:
             }}
 
             .keyword-pill:hover {{
-                background: rgba(11, 61, 145, 0.16);
-                border-color: rgba(11, 61, 145, 0.32);
-                color: var(--nasa-blue);
+                background: rgba(11, 61, 145, 0.32);
+                border-color: rgba(88, 166, 255, 0.44);
+                color: #ffffff;
                 text-decoration: none;
             }}
 
             .keyword-pill-count {{
-                color: #526174;
+                color: #8b949e;
                 font-weight: 650;
             }}
 
@@ -496,7 +525,13 @@ def inject_dashboard_styles(st) -> None:
             }}
 
             h1, h2, h3 {{
-                color: #172033;
+                color: var(--space-text);
+            }}
+
+            div[data-testid="stDataFrame"] {{
+                border: 1px solid var(--space-border);
+                border-radius: 8px;
+                overflow: hidden;
             }}
         </style>
         """,
@@ -506,18 +541,19 @@ def inject_dashboard_styles(st) -> None:
 
 def render_header(st, spike_alert_count: int) -> None:
     st.markdown(
-        f"""
+        """
         <div class="nasa-hero">
             <div class="nasa-title-wrap">
                 <div class="nasa-logo-badge"><span>NASA</span></div>
                 <div>
-                    <h1 class="nasa-title">NASA Media Monitor</h1>
+                    <h1 class="nasa-title">Media monitor</h1>
                     <div class="nasa-subtitle">Mission coverage intelligence</div>
                 </div>
             </div>
-            <div class="spike-counter">
-                <div class="spike-counter-label">Spike alerts</div>
-                <div class="spike-counter-value">{spike_alert_count:,}</div>
+            <div class="header-pill-wrap">
+                <span class="header-pill">Last 7 days</span>
+                <span class="header-pill danger">3 spikes</span>
+                <span class="header-pill live">Live</span>
             </div>
         </div>
         """,
@@ -644,13 +680,14 @@ def render_dashboard() -> None:
                 range=[0, y_max + 1],
                 rangemode="tozero",
                 title_text="Number of mentions",
-                gridcolor="rgba(11, 61, 145, 0.08)",
+                gridcolor="rgba(139, 148, 158, 0.16)",
             )
             fig.update_layout(
                 margin=dict(t=10, b=10, l=10, r=10),
-                plot_bgcolor="#ffffff",
-                paper_bgcolor="#ffffff",
-                hoverlabel=dict(bgcolor="#ffffff", font_color="#172033"),
+                font=dict(color="#e6edf3"),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                hoverlabel=dict(bgcolor="#161b22", font_color="#e6edf3"),
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -717,10 +754,12 @@ def render_dashboard() -> None:
                 y=0.5,
                 xanchor="center",
                 yanchor="middle",
-                bgcolor="rgba(255,255,255,0.75)",
-                bordercolor="rgba(11,61,145,0.14)",
+                bgcolor="rgba(22,27,34,0.78)",
+                bordercolor="rgba(139,148,158,0.22)",
                 borderwidth=1,
+                font=dict(color="#e6edf3"),
             ),
+            font=dict(color="#e6edf3"),
         )
         st.plotly_chart(fig, use_container_width=True)
 
