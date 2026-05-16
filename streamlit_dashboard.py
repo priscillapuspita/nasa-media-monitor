@@ -549,6 +549,19 @@ def inject_dashboard_styles(st) -> None:
                 border-radius: 8px;
                 overflow: hidden;
             }}
+
+            .sentiment-summary {{
+                color: var(--space-muted);
+                font-size: 0.86rem;
+                line-height: 1.4;
+                text-align: center;
+                margin-top: -0.3rem;
+            }}
+
+            .sentiment-summary strong {{
+                color: var(--space-text);
+                font-weight: 720;
+            }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -615,6 +628,22 @@ def build_keyword_pill_html(keywords: list[tuple[str, int]]) -> str:
 
 def render_keyword_pills(st, keywords: list[tuple[str, int]]) -> None:
     st.markdown(build_keyword_pill_html(keywords), unsafe_allow_html=True)
+
+
+def build_sentiment_summary(sentiment_counts) -> str:
+    counts = {
+        str(row["sentiment_label"]).lower(): int(row["size"])
+        for row in sentiment_counts.to_dict("records")
+    }
+    labels = ["positive", "neutral", "negative"]
+    total = sum(counts.values())
+
+    parts: list[str] = []
+    for label in labels:
+        percentage = round((counts.get(label, 0) / total * 100) if total else 0)
+        parts.append(f"<strong>{label.title()}</strong> {percentage}%")
+
+    return " / ".join(parts)
 
 
 def render_dashboard() -> None:
@@ -714,18 +743,18 @@ def render_dashboard() -> None:
                 ),
                 mode="lines+markers",
             )
-            fig.update_xaxes(tickformat="%Y-%m-%d", title_text="Date")
+            fig.update_xaxes(tickformat="%Y-%m-%d", title_text="Date", gridcolor="#30363d")
             fig.update_yaxes(
                 range=[0, y_max + 1],
                 rangemode="tozero",
                 title_text="Number of mentions",
-                gridcolor="rgba(139, 148, 158, 0.16)",
+                gridcolor="#30363d",
             )
             fig.update_layout(
                 margin=dict(t=10, b=10, l=10, r=10),
                 font=dict(color="#e6edf3"),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="#0d1117",
+                paper_bgcolor="#161b22",
                 hoverlabel=dict(bgcolor="#161b22", font_color="#e6edf3"),
             )
             st.plotly_chart(fig, use_container_width=True)
@@ -784,23 +813,17 @@ def render_dashboard() -> None:
             },
         )
         fig.update_layout(
-            showlegend=True,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
+            showlegend=False,
+            paper_bgcolor="#161b22",
+            plot_bgcolor="#0d1117",
             margin=dict(t=10, b=10, l=10, r=10),
-            legend=dict(
-                x=0.5,
-                y=0.5,
-                xanchor="center",
-                yanchor="middle",
-                bgcolor="rgba(22,27,34,0.78)",
-                bordercolor="rgba(139,148,158,0.22)",
-                borderwidth=1,
-                font=dict(color="#e6edf3"),
-            ),
             font=dict(color="#e6edf3"),
         )
         st.plotly_chart(fig, use_container_width=True)
+        st.markdown(
+            f'<div class="sentiment-summary">{build_sentiment_summary(sentiment_counts)}</div>',
+            unsafe_allow_html=True,
+        )
 
     st.subheader("Top Sources")
     top_sources = build_top_sources(rows)

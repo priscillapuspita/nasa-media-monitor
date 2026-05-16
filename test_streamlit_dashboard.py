@@ -1,11 +1,14 @@
 import unittest
 from datetime import date, datetime, timezone
 
+import pandas as pd
+
 from streamlit_dashboard import (
     build_alerts,
     build_article_table,
     build_daily_volume,
     build_keyword_pill_html,
+    build_sentiment_summary,
     build_top_sources,
     clean_source_name,
     extract_trending_keywords,
@@ -76,6 +79,23 @@ class StreamlitDashboardTest(unittest.TestCase):
         self.assertIn("3", html)
         self.assertIn("https://www.google.com/search?q=NASA+artemis+news", html)
         self.assertIn("NASA+james+webb+news", html)
+
+    def test_build_sentiment_summary_formats_percentages(self):
+        counts = pd.DataFrame(
+            [
+                {"sentiment_label": "positive", "size": 40},
+                {"sentiment_label": "neutral", "size": 55},
+                {"sentiment_label": "negative", "size": 4},
+                {"sentiment_label": "unscored", "size": 1},
+            ]
+        )
+
+        summary = build_sentiment_summary(counts)
+
+        self.assertEqual(
+            summary,
+            "<strong>Positive</strong> 40% / <strong>Neutral</strong> 55% / <strong>Negative</strong> 4%",
+        )
 
     def test_build_alerts_includes_high_confidence_negative_mentions(self):
         rows = [
