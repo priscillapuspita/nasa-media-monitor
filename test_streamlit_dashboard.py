@@ -5,6 +5,7 @@ from streamlit_dashboard import (
     build_alerts,
     build_article_table,
     build_daily_volume,
+    build_keyword_pill_html,
     build_top_sources,
     clean_source_name,
     extract_trending_keywords,
@@ -66,6 +67,15 @@ class StreamlitDashboardTest(unittest.TestCase):
             "said",
         ]:
             self.assertNotIn(stopword, keywords)
+
+    def test_build_keyword_pill_html_uses_clickable_links(self):
+        html = build_keyword_pill_html([("artemis", 3), ("james webb", 2)])
+
+        self.assertIn('class="keyword-pill"', html)
+        self.assertIn("artemis", html)
+        self.assertIn("3", html)
+        self.assertIn("https://www.google.com/search?q=NASA+artemis+news", html)
+        self.assertIn("NASA+james+webb+news", html)
 
     def test_build_alerts_includes_high_confidence_negative_mentions(self):
         rows = [

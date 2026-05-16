@@ -7,6 +7,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from html import escape
 from typing import Any
+from urllib.parse import quote_plus
 
 from config import ConfigError, get_supabase_client
 from ingest_mentions import clean_text
@@ -471,6 +472,15 @@ def inject_dashboard_styles(st) -> None:
                 font-weight: 680;
                 font-size: 0.86rem;
                 line-height: 1;
+                text-decoration: none;
+                transition: background 120ms ease, border-color 120ms ease;
+            }}
+
+            .keyword-pill:hover {{
+                background: rgba(11, 61, 145, 0.16);
+                border-color: rgba(11, 61, 145, 0.32);
+                color: var(--nasa-blue);
+                text-decoration: none;
             }}
 
             .keyword-pill-count {{
@@ -525,17 +535,24 @@ def render_metric_card(st, label: str, value: str, accent: str = "blue") -> None
     )
 
 
+def build_keyword_pill_html(keywords: list[tuple[str, int]]) -> str:
+    pills: list[str] = []
+    for keyword, count in keywords:
+        safe_keyword = escape(keyword)
+        query = quote_plus(f"NASA {keyword} news")
+        pills.append(
+            '<a class="keyword-pill" '
+            f'href="https://www.google.com/search?q={query}" '
+            'target="_blank" rel="noopener noreferrer">'
+            f"{safe_keyword} "
+            f'<span class="keyword-pill-count">{count}</span>'
+            "</a>"
+        )
+    return f'<div class="keyword-pill-wrap">{"".join(pills)}</div>'
+
+
 def render_keyword_pills(st, keywords: list[tuple[str, int]]) -> None:
-    pills = "".join(
-        f"""
-        <span class="keyword-pill">
-            {escape(keyword)}
-            <span class="keyword-pill-count">{count}</span>
-        </span>
-        """
-        for keyword, count in keywords
-    )
-    st.markdown(f'<div class="keyword-pill-wrap">{pills}</div>', unsafe_allow_html=True)
+    st.markdown(build_keyword_pill_html(keywords), unsafe_allow_html=True)
 
 
 def render_dashboard() -> None:
@@ -716,9 +733,7 @@ def render_dashboard() -> None:
         if not keywords:
             st.info("No keywords available yet.")
         else:
-            keyword_df = pd.DataFrame(keywords, columns=["keyword", "mentions"])
             render_keyword_pills(st, keywords)
-            st.dataframe(keyword_df, use_container_width=True, hide_index=True)
 
     with lower_right:
         st.subheader("Live Alert Feed")
