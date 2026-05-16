@@ -26,6 +26,13 @@ from config import (
 NEWSAPI_ENDPOINT = "https://newsapi.org/v2/everything"
 REDDIT_TOKEN_ENDPOINT = "https://www.reddit.com/api/v1/access_token"
 REDDIT_SEARCH_ENDPOINT = "https://oauth.reddit.com/search"
+RELEVANCE_TERMS = (
+    "nasa",
+    "space agency",
+    "artemis",
+    "james webb",
+    "jpl",
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +53,11 @@ def clean_text(value: str | None) -> str:
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def is_relevant_mention(title: str | None, description: str | None) -> bool:
+    searchable_text = clean_text(f"{title or ''} {description or ''}").lower()
+    return any(term in searchable_text for term in RELEVANCE_TERMS)
 
 
 def parse_datetime(value: str | None) -> datetime | None:
@@ -117,6 +129,8 @@ def fetch_newsapi_mentions(query: str, page_size: int) -> list[Mention]:
 
         if not title or not url:
             continue
+        if not is_relevant_mention(title, description):
+            continue
 
         mentions.append(
             Mention(
@@ -183,6 +197,8 @@ def fetch_reddit_mentions(query: str, limit: int) -> list[Mention]:
         subreddit = clean_text(post.get("subreddit_name_prefixed"))
 
         if not title or not permalink:
+            continue
+        if not is_relevant_mention(title, raw_text):
             continue
 
         mentions.append(

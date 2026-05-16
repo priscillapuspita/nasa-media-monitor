@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import quote_plus
 
 from config import ConfigError, get_supabase_client
-from ingest_mentions import clean_text
+from ingest_mentions import clean_text, is_relevant_mention
 
 
 NASA_BLUE = "#0b3d91"
@@ -107,7 +107,10 @@ def fetch_rows(supabase_client, days: int, limit: int) -> list[dict[str, Any]]:
         published_at = parse_timestamp(row.get("published_at"))
         if published_at is not None and published_at.tzinfo is None:
             published_at = published_at.replace(tzinfo=timezone.utc)
-        if published_at is None or published_at >= cutoff:
+        if (published_at is None or published_at >= cutoff) and is_relevant_mention(
+            row.get("headline"),
+            row.get("raw_text"),
+        ):
             rows.append(row)
     return rows
 

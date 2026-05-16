@@ -1,7 +1,7 @@
 import unittest
 from datetime import timezone
 
-from ingest_mentions import clean_text, parse_datetime, parse_unix_datetime
+from ingest_mentions import clean_text, is_relevant_mention, parse_datetime, parse_unix_datetime
 
 
 class IngestMentionsTest(unittest.TestCase):
@@ -22,6 +22,17 @@ class IngestMentionsTest(unittest.TestCase):
         self.assertIsNotNone(parsed)
         self.assertEqual(parsed.tzinfo, timezone.utc)
         self.assertEqual(parsed.isoformat(), "1970-01-01T00:00:00+00:00")
+
+    def test_is_relevant_mention_allows_core_space_terms(self):
+        self.assertTrue(is_relevant_mention("NASA confirms Artemis launch", "Mission update"))
+        self.assertTrue(is_relevant_mention("Telescope news", "James Webb detects a galaxy"))
+        self.assertTrue(is_relevant_mention("JPL shares rover update", ""))
+        self.assertTrue(is_relevant_mention("Budget update", "Space agency requests funding"))
+
+    def test_is_relevant_mention_rejects_unrelated_articles(self):
+        self.assertFalse(is_relevant_mention("Apple Cider Vinegar benefits", "Kitchen guide"))
+        self.assertFalse(is_relevant_mention("Mother's Day gifts", "Shopping roundup"))
+        self.assertFalse(is_relevant_mention("Zodiac signs forecast", "Lifestyle article"))
 
 
 if __name__ == "__main__":
