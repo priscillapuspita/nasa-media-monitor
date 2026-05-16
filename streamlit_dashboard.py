@@ -704,7 +704,21 @@ def render_dashboard() -> None:
                 "unscored": "#9E9E9E",
             },
         )
-        fig.update_layout(showlegend=True, margin=dict(t=10, b=10, l=10, r=10))
+        fig.update_layout(
+            showlegend=True,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(t=10, b=10, l=10, r=10),
+            legend=dict(
+                x=0.5,
+                y=0.5,
+                xanchor="center",
+                yanchor="middle",
+                bgcolor="rgba(255,255,255,0.75)",
+                bordercolor="rgba(11,61,145,0.14)",
+                borderwidth=1,
+            ),
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Top Sources")
