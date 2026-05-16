@@ -460,9 +460,18 @@ def inject_dashboard_styles(st) -> None:
                 border: 1px solid var(--space-border);
                 border-left: 5px solid var(--nasa-blue);
                 border-radius: 8px;
-                background: var(--space-panel);
-                padding: 0.85rem 1rem;
+                background: #161b22;
+                padding: 0.9rem 1rem;
                 box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+                min-height: 116px;
+            }}
+
+            .metric-card.green {{
+                border-left-color: var(--space-green);
+            }}
+
+            .metric-card.amber {{
+                border-left-color: #d29922;
             }}
 
             .metric-card.red {{
@@ -471,18 +480,25 @@ def inject_dashboard_styles(st) -> None:
 
             .metric-card-label {{
                 color: var(--space-muted);
-                font-size: 0.82rem;
-                font-weight: 650;
+                font-size: 11px;
+                font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0;
             }}
 
             .metric-card-value {{
                 color: var(--space-text);
-                font-size: 1.45rem;
+                font-size: 28px;
                 line-height: 1.2;
-                font-weight: 750;
+                font-weight: 800;
                 margin-top: 0.35rem;
+            }}
+
+            .metric-card-delta {{
+                color: var(--space-muted);
+                font-size: 0.78rem;
+                line-height: 1.35;
+                margin-top: 0.45rem;
             }}
 
             .keyword-pill-wrap {{
@@ -561,13 +577,20 @@ def render_header(st, spike_alert_count: int) -> None:
     )
 
 
-def render_metric_card(st, label: str, value: str, accent: str = "blue") -> None:
-    accent_class = " red" if accent == "red" else ""
+def render_metric_card(
+    st,
+    label: str,
+    value: str,
+    delta: str,
+    accent: str = "blue",
+) -> None:
+    accent_class = f" {accent}" if accent in {"green", "amber", "red"} else ""
     st.markdown(
         f"""
         <div class="metric-card{accent_class}">
             <div class="metric-card-label">{escape(label)}</div>
             <div class="metric-card-value">{escape(value)}</div>
+            <div class="metric-card-delta">{escape(delta)}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -630,20 +653,36 @@ def render_dashboard() -> None:
 
     total_mentions = len(df)
     scored_mentions = int(df["sentiment_confidence"].notna().sum())
+    scored_percent = (scored_mentions / total_mentions * 100) if total_mentions else 0
     latest_timestamp = df["published_at"].dropna().max()
 
     render_header(st, spike_alert_count)
 
-    metric_a, metric_b, metric_c = st.columns(3)
+    metric_a, metric_b, metric_c, metric_d = st.columns(4)
     with metric_a:
-        render_metric_card(st, "Mentions", f"{total_mentions:,}")
+        render_metric_card(st, "Mentions", f"{total_mentions:,}", "Filtered media items")
     with metric_b:
-        render_metric_card(st, "Scored mentions", f"{scored_mentions:,}")
+        render_metric_card(
+            st,
+            "Scored mentions",
+            f"{scored_mentions:,}",
+            f"{scored_percent:.0f}% sentiment coverage",
+            accent="green",
+        )
     with metric_c:
         render_metric_card(
             st,
             "Latest mention",
             format_timestamp(latest_timestamp.to_pydatetime() if pd.notna(latest_timestamp) else None),
+            "Most recent article",
+            accent="amber",
+        )
+    with metric_d:
+        render_metric_card(
+            st,
+            "Spike alerts",
+            f"{spike_alert_count:,}",
+            "Past 7 days",
             accent="red",
         )
 
